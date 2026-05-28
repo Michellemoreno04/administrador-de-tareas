@@ -46,7 +46,7 @@ export default function AuthScreen() {
 
                 if (error) throw error;
 
-                Alert.alert("Éxito", "Sesión iniciada");
+                console.log('sesión iniciada')
             } else {
                 // SIGN UP
                 const { data, error } = await supabase.auth.signUp({
@@ -63,7 +63,7 @@ export default function AuthScreen() {
                         "Revisa tu correo para confirmar la cuenta"
                     );
                 } else {
-                    Alert.alert("Éxito", "Cuenta creada y sesión iniciada");
+                    console.log('cuenta creada y sesión iniciada')
                 }
             }
         } catch (error: any) {

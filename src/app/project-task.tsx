@@ -229,11 +229,22 @@ export default function ProjectTask() {
                         >
                             <Text style={styles.backButtonText}>←</Text>
                         </TouchableOpacity>
-                        <View>
+                        <View style={{ flex: 1, paddingRight: 16 }}>
                             <Text style={styles.headerSubtitle}>Proyecto</Text>
                             <Text style={styles.headerTitle} numberOfLines={1}>
                                 {projectName || "Mis Tareas"}
                             </Text>
+
+                            {tasks.length > 0 && (
+                                <View style={styles.headerProgressContainer}>
+                                    <View style={styles.headerProgressBarBg}>
+                                        <View style={[styles.headerProgressBarFill, { width: `${Math.round((tasks.filter(t => t.status === 'completada').length / tasks.length) * 100)}%` }]} />
+                                    </View>
+                                    <Text style={styles.headerProgressText}>
+                                        {Math.round((tasks.filter(t => t.status === 'completada').length / tasks.length) * 100)}% completado
+                                    </Text>
+                                </View>
+                            )}
                         </View>
                     </View>
 
@@ -405,6 +416,33 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         color: "#111827",
         flexShrink: 1,
+    },
+
+    headerProgressContainer: {
+        marginTop: 6,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+
+    headerProgressBarBg: {
+        flex: 1,
+        height: 6,
+        backgroundColor: '#E5E7EB',
+        borderRadius: 3,
+        overflow: 'hidden',
+        marginRight: 8,
+    },
+
+    headerProgressBarFill: {
+        height: '100%',
+        backgroundColor: '#10B981',
+        borderRadius: 3,
+    },
+
+    headerProgressText: {
+        fontSize: 12,
+        color: '#6B7280',
+        fontWeight: '600',
     },
 
     headerAddButton: {

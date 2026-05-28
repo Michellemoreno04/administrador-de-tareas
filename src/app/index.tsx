@@ -10,51 +10,53 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Dimensions,
+  Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { supabase } from "../../utils/supabase";
 
-type Project = {
-  id: string;
-  title: string;
-  description: string;
-};
+import {
+  Project,
+  getProjects,
+  createProject,
+} from "../services/projectService";
 
-type User = {
-  id: string;
-  email: string;
-};
+import {
+  User,
+  getCurrentUser,
+  signOut,
+} from "../services/authService";
+
+const { width } = Dimensions.get("window");
 
 export default function Home() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+
   const [newProjectTitle, setNewProjectTitle] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
 
   const fetchProjects = async (showLoadingIndicator = true) => {
     if (showLoadingIndicator) setIsLoading(true);
+
     try {
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError || !authData.user) throw new Error("No autenticado");
-
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("user_id", authData.user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        throw error;
-      }
+      const data = await getProjects();
       setProjects(data || []);
     } catch (error: any) {
-      Alert.alert("Error", "No se pudieron cargar los proyectos: " + error.message);
+      Alert.alert(
+        "Error",
+        "No se pudieron cargar los proyectos: " + error.message
+      );
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -68,14 +70,12 @@ export default function Home() {
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-        if (authError || !authUser) return;
-        setUser({
-          id: authUser.id,
-          email: authUser.email || "",
-        });
+        const currentUser = await getCurrentUser();
+        if (currentUser) {
+          setUser(currentUser);
+        }
       } catch (err: any) {
-        console.error("Error al cargar usuario:", err.message);
+        console.log(err);
       }
     };
     loadUser();
@@ -89,65 +89,57 @@ export default function Home() {
   const handleAddProject = async () => {
     if (!newProjectTitle.trim()) return;
 
-    setIsLoading(true);
-
     try {
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError || !authData.user) throw new Error("No autenticado");
+      const newProject = await createProject(
+        newProjectTitle,
+        newProjectDescription
+      );
 
-      const { data, error } = await supabase
-        .from("projects")
-        .insert([
-          {
-            title: newProjectTitle.trim(),
-            description: newProjectDescription.trim(),
-            user_id: authData.user.id,
-          },
-        ])
-        .select();
-
-      if (error) {
-        throw error;
-      }
-
-      if (data && data.length > 0) {
-        setProjects([data[0], ...projects]);
-      } else {
-        fetchProjects(false);
+      if (newProject) {
+        setProjects([newProject, ...projects]);
       }
 
       setNewProjectTitle("");
       setNewProjectDescription("");
       setIsAdding(false);
     } catch (error: any) {
-      Alert.alert("Error", "No se pudo crear el proyecto: " + error.message);
-    } finally {
-      setIsLoading(false);
+      Alert.alert(
+        "Error",
+        "No se pudo crear el proyecto: " + error.message
+      );
     }
   };
 
   const handleProjectPress = (project: Project) => {
     router.push({
       pathname: "/project-task",
-      params: { projectId: project.id, projectName: project.title },
+      params: {
+        projectId: project.id,
+        projectName: project.title,
+      },
     });
   };
 
   const handleLogout = async () => {
     Alert.alert(
       "Cerrar Sesión",
-      "¿Estás seguro de que deseas cerrar sesión?",
+      "¿Deseas cerrar sesión?",
       [
-        { text: "Cancelar", style: "cancel" },
         {
-          text: "Sí, salir",
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Salir",
           style: "destructive",
           onPress: async () => {
             try {
-              const { error } = await supabase.auth.signOut();
-              if (error) throw error;
+              await signOut();
             } catch (error: any) {
-              Alert.alert("Error", "No se pudo cerrar sesión: " + error.message);
+              Alert.alert(
+                "Error",
+                "No se pudo cerrar sesión: " + error.message
+              );
             }
           },
         },
@@ -158,142 +150,243 @@ export default function Home() {
   if (isLoading) {
     return (
       <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#3B82F6" />
-        <Text style={styles.loaderText}>Cargando...</Text>
+        <ActivityIndicator size="large" color="#4F46E5" />
+        <Text style={styles.loaderText}>Preparando tu espacio...</Text>
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="dark" />
+    <View style={styles.mainContainer}>
+      <StatusBar style="light" />
 
-      <ScrollView
-        contentContainerStyle={styles.container}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+      {/* HEADER SECTION with vibrant gradient */}
+      <LinearGradient
+        colors={["#4F46E5", "#9333EA", "#DB2777"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.headerGradient, { paddingTop: insets.top + 20 }]}
       >
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.headerSubtitle}>Bienvenido, {user?.email}</Text>
+        <View style={styles.headerContent}>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.greetingText}>Bienvenido de vuelta 👋</Text>
+            <Text numberOfLines={1} style={styles.emailText}>
+              {user?.email || "Cargando..."}
+            </Text>
             <Text style={styles.headerTitle}>Mis Proyectos</Text>
           </View>
 
           <View style={styles.headerActions}>
             <TouchableOpacity
-              style={styles.headerLogoutButton}
+              style={styles.iconButton}
               onPress={handleLogout}
               activeOpacity={0.7}
             >
-              <Text style={styles.headerLogoutButtonText}>🚪</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.headerAddButton}
-              onPress={() => setIsAdding(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.headerAddButtonText}>+</Text>
+              <Text style={styles.iconButtonText}>🚪</Text>
             </TouchableOpacity>
           </View>
         </View>
+      </LinearGradient>
 
-        {/* Lista de Proyectos */}
-        {isLoading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color="#3B82F6" />
-            <Text style={styles.loaderText}>Cargando proyectos...</Text>
+      {/* STATS OVERLAY */}
+      <View style={styles.statsWrapper}>
+        <View style={styles.statsCard}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{projects.length}</Text>
+            <Text style={styles.statLabel}>Totales</Text>
           </View>
-        ) : projects.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📁</Text>
-            <Text style={styles.emptyTitle}>No hay proyectos</Text>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{projects.length > 0 ? "Activos" : "Vacío"}</Text>
+            <Text style={styles.statLabel}>Estado</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <TouchableOpacity
+            style={styles.mainAddButton}
+            onPress={() => setIsAdding(true)}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={["#4F46E5", "#7C3AED"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.mainAddButtonGradient}
+            >
+              <Text style={styles.mainAddButtonText}>+</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* CONTENT LIST */}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#4F46E5"
+            colors={["#4F46E5"]}
+          />
+        }
+      >
+        {projects.length === 0 ? (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconContainer}>
+              <Text style={styles.emptyIcon}>✨</Text>
+            </View>
+            <Text style={styles.emptyTitle}>Un lienzo en blanco</Text>
             <Text style={styles.emptyDescription}>
-              Toca el botón + para crear tu primer proyecto y empezar a organizar tus tareas.
+              Comienza a organizar tus ideas creando tu primer proyecto hoy mismo.
             </Text>
+            <TouchableOpacity
+              style={styles.createFirstButton}
+              onPress={() => setIsAdding(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.createFirstButtonText}>Crear Proyecto</Text>
+            </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.projectsGrid}>
-            {projects.map((project) => (
-              <TouchableOpacity
-                key={project.id}
-                style={styles.projectCard}
-                onPress={() => handleProjectPress(project)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.projectIconContainer}>
-                  <Text style={styles.projectIcon}>📋</Text>
-                </View>
-                <Text style={styles.projectTitle} numberOfLines={1}>
-                  {project.title}
-                </Text>
-                {project.description ? (
-                  <Text style={styles.projectDescription} numberOfLines={2}>
-                    {project.description}
-                  </Text>
-                ) : null}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+          <View style={styles.projectsList}>
+            <Text style={styles.sectionHeader}>Tus Proyectos</Text>
+            <View style={styles.projectsGrid}>
+            {projects.map((project, index) => {
+              const themes = [
+                { bg: '#EEF2FF', icon: '🚀', tint: '#4F46E5', text: '#312E81' },
+                { bg: '#FDF2F8', icon: '✨', tint: '#DB2777', text: '#831843' },
+                { bg: '#F0FDF4', icon: '🎨', tint: '#16A34A', text: '#14532D' },
+                { bg: '#FFFBEB', icon: '🔥', tint: '#D97706', text: '#78350F' },
+                { bg: '#FAF5FF', icon: '💡', tint: '#9333EA', text: '#581C87' },
+              ];
+              const theme = themes[index % themes.length];
+              
+              const tasks = project.tasks || [];
+              const totalTasks = tasks.length;
+              const completedTasks = tasks.filter(t => t.status === 'completada').length;
+              const progress = totalTasks > 0 ? (completedTasks / totalTasks) : 0;
+              const progressPercent = Math.round(progress * 100);
+              
+              const isCompleted = totalTasks > 0 && totalTasks === completedTasks;
+              const cardBg = isCompleted ? theme.bg : "#FFFFFF";
 
-        {/* Modal para Crear Proyecto */}
-        <Modal visible={isAdding} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Nuevo Proyecto</Text>
-
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Nombre del proyecto"
-                value={newProjectTitle}
-                onChangeText={setNewProjectTitle}
-                placeholderTextColor="#9CA3AF"
-              />
-
-              <TextInput
-                style={[styles.modalInput, styles.descriptionInput]}
-                placeholder="Descripción (opcional)"
-                value={newProjectDescription}
-                onChangeText={setNewProjectDescription}
-                multiline
-                placeholderTextColor="#9CA3AF"
-              />
-
-              <View style={styles.modalButtons}>
+              return (
                 <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => {
-                    setIsAdding(false);
-                    setNewProjectTitle("");
-                    setNewProjectDescription("");
-                  }}
+                  key={project.id}
+                  style={styles.squareCardWrapper}
+                  activeOpacity={0.75}
+                  onPress={() => handleProjectPress(project)}
                 >
-                  <Text style={styles.cancelButtonText}>Cancelar</Text>
-                </TouchableOpacity>
+                  <View style={[styles.squareCard, { backgroundColor: cardBg }]}>
+                    <View style={styles.squareCardHeader}>
+                        <View style={[styles.squareIconContainer, { backgroundColor: isCompleted ? "#FFFFFF" : theme.bg }]}>
+                          <Text style={styles.squareIconEmoji}>{theme.icon}</Text>
+                        </View>
+                        {totalTasks > 0 && (
+                            <Text style={[styles.progressText, { color: theme.tint }]}>
+                                {progressPercent}%
+                            </Text>
+                        )}
+                    </View>
+                    
+                    <View style={styles.squareCardBody}>
+                      <Text numberOfLines={2} style={styles.squareTitle}>
+                        {project.title}
+                      </Text>
+                      <Text numberOfLines={1} style={styles.squareDescription}>
+                        {project.description || "Sin descripción"}
+                      </Text>
+                    </View>
 
-                <TouchableOpacity
-                  style={[
-                    styles.createButton,
-                    !newProjectTitle.trim() && styles.createButtonDisabled,
-                  ]}
-                  onPress={handleAddProject}
-                  disabled={!newProjectTitle.trim()}
-                >
-                  <Text style={styles.createButtonText}>Crear Proyecto</Text>
+                    <View style={styles.progressBarBackground}>
+                        <View style={[styles.progressBarFill, { width: `${progressPercent}%`, backgroundColor: theme.tint }]} />
+                    </View>
+                  </View>
                 </TouchableOpacity>
-              </View>
+              );
+            })}
             </View>
           </View>
-        </Modal>
+        )}
       </ScrollView>
-    </SafeAreaView>
+
+      {/* CREATE MODAL */}
+      <Modal
+        visible={isAdding}
+        transparent
+        animationType="slide"
+      >
+        <KeyboardAvoidingView 
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Nuevo Proyecto</Text>
+              <TouchableOpacity onPress={() => setIsAdding(false)} style={styles.closeModalBtn}>
+                <Text style={styles.closeModalText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalSubtitle}>
+              Dale un nombre y describe de qué trata este nuevo proyecto.
+            </Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Nombre del proyecto</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej. Rediseño de app..."
+                placeholderTextColor="#94A3B8"
+                value={newProjectTitle}
+                onChangeText={setNewProjectTitle}
+                autoFocus
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Descripción (Opcional)</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Añade detalles sobre los objetivos..."
+                placeholderTextColor="#94A3B8"
+                multiline
+                value={newProjectDescription}
+                onChangeText={setNewProjectDescription}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                !newProjectTitle.trim() && styles.submitButtonDisabled,
+              ]}
+              disabled={!newProjectTitle.trim()}
+              onPress={handleAddProject}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={newProjectTitle.trim() ? ["#4F46E5", "#7C3AED"] : ["#CBD5E1", "#CBD5E1"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.submitButtonGradient}
+              >
+                <Text style={styles.submitButtonText}>Crear Proyecto</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  mainContainer: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+  },
   loaderContainer: {
     flex: 1,
     justifyContent: "center",
@@ -301,224 +394,351 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
   },
   loaderText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: "#3B82F6",
+    marginTop: 16,
+    fontSize: 16,
+    color: "#4F46E5",
+    fontWeight: "600",
+    letterSpacing: 0.5,
   },
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
+  headerGradient: {
+    paddingHorizontal: 24,
+    paddingBottom: 60,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
   },
-  container: {
-    padding: 20,
-    paddingBottom: 40,
-    flexGrow: 1,
-  },
-  headerRow: {
+  headerContent: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 24,
-    marginTop: 8,
+    alignItems: "flex-start",
   },
-  headerSubtitle: {
-    fontSize: 16,
-    color: "#64748B",
+  headerTextContainer: {
+    flex: 1,
+  },
+  greetingText: {
+    fontSize: 15,
+    color: "rgba(255,255,255,0.8)",
+    fontWeight: "500",
     marginBottom: 4,
   },
+  emailText: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.6)",
+    marginBottom: 16,
+    fontWeight: "400",
+  },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 34,
     fontWeight: "800",
-    color: "#0F172A",
-  },
-  headerAddButton: {
-    backgroundColor: "#3B82F6",
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#3B82F6",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  headerAddButtonText: {
     color: "#FFFFFF",
-    fontSize: 26,
-    fontWeight: "500",
-    marginTop: -2,
+    letterSpacing: -0.5,
   },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
   },
-  headerLogoutButton: {
-    backgroundColor: "#FFE4E6",
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.15)",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#F43F5E",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 3,
     borderWidth: 1,
-    borderColor: "#FECDD3",
+    borderColor: "rgba(255,255,255,0.2)",
   },
-  headerLogoutButtonText: {
+  iconButtonText: {
     fontSize: 20,
   },
-  emptyContainer: {
+  statsWrapper: {
+    paddingHorizontal: 24,
+    marginTop: -40,
+    zIndex: 10,
+  },
+  statsCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: "flex-start",
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#64748B",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  statDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: "#E2E8F0",
+    marginHorizontal: 16,
+  },
+  mainAddButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    overflow: "hidden",
+    shadowColor: "#4F46E5",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  mainAddButtonGradient: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 32,
-    marginTop: 60,
+  },
+  mainAddButtonText: {
+    fontSize: 28,
+    color: "#FFFFFF",
+    fontWeight: "600",
+    marginTop: -2,
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingTop: 30,
+    paddingBottom: 120,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 40,
+  },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#EEF2FF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 24,
   },
   emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
+    fontSize: 36,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1E293B",
-    marginBottom: 8,
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 12,
   },
   emptyDescription: {
     fontSize: 15,
     color: "#64748B",
     textAlign: "center",
-    lineHeight: 22,
+    lineHeight: 24,
+    paddingHorizontal: 20,
+    marginBottom: 32,
+  },
+  createFirstButton: {
+    backgroundColor: "#0F172A",
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 100,
+  },
+  createFirstButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  projectsList: {
+    marginTop: 10,
+    paddingBottom: 20,
+  },
+  sectionHeader: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#334155",
+    marginBottom: 16,
+    marginLeft: 4,
+    letterSpacing: 0.5,
   },
   projectsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    gap: 16,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 8,
   },
-  projectCard: {
-    backgroundColor: "#FFFFFF",
-    width: "47%",
-    borderRadius: 16,
-    padding: 16,
+  squareCardWrapper: {
+    width: '48%',
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    aspectRatio: 0.85, 
+  },
+  squareCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 16,
+    flex: 1,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
     elevation: 2,
     borderWidth: 1,
-    borderColor: "#F1F5F9",
+    borderColor: "rgba(226, 232, 240, 0.8)",
   },
-  projectIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: "#EFF6FF",
-    justifyContent: "center",
-    alignItems: "center",
+  squareCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 12,
   },
-  projectIcon: {
-    fontSize: 20,
+  squareIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  projectTitle: {
+  squareIconEmoji: {
+    fontSize: 22,
+  },
+  progressText: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  squareCardBody: {
+    flex: 1,
+  },
+  squareTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1E293B",
+    color: "#0F172A",
     marginBottom: 6,
+    letterSpacing: -0.2,
   },
-  projectDescription: {
-    fontSize: 13,
+  squareDescription: {
+    fontSize: 12,
     color: "#64748B",
-    lineHeight: 18,
+  },
+  progressBarBackground: {
+    height: 6,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 3,
+    marginTop: 12,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 3,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
+    backgroundColor: "rgba(15, 23, 42, 0.4)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    width: "100%",
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 24,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+    minHeight: "50%",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: -10 },
     shadowOpacity: 0.1,
     shadowRadius: 20,
-    elevation: 10,
+    elevation: 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
   },
   modalTitle: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "800",
-    marginBottom: 20,
     color: "#0F172A",
   },
-  modalInput: {
-    backgroundColor: "#F8FAFC",
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    marginBottom: 16,
-    fontSize: 16,
-    color: "#1E293B",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  descriptionInput: {
-    minHeight: 120,
-    textAlignVertical: "top",
-  },
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 12,
-    marginTop: 12,
-  },
-  cancelButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 14,
+  closeModalBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: "#F1F5F9",
     justifyContent: "center",
     alignItems: "center",
   },
-  cancelButtonText: {
+  closeModalText: {
+    fontSize: 16,
     color: "#64748B",
     fontWeight: "700",
+  },
+  modalSubtitle: {
     fontSize: 15,
+    color: "#64748B",
+    marginBottom: 28,
+    lineHeight: 22,
   },
-  createButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 14,
-    backgroundColor: "#3B82F6",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#3B82F6",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+  inputGroup: {
+    marginBottom: 20,
   },
-  createButtonDisabled: {
-    backgroundColor: "#93C5FD",
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#334155",
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  input: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    fontSize: 16,
+    color: "#0F172A",
+  },
+  textArea: {
+    minHeight: 100,
+    textAlignVertical: "top",
+    paddingTop: 16,
+  },
+  submitButton: {
+    marginTop: 12,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#4F46E5",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  submitButtonDisabled: {
     shadowOpacity: 0,
     elevation: 0,
   },
-  createButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 15,
+  submitButtonGradient: {
+    paddingVertical: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
-
+  submitButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
 });

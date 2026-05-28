@@ -4,19 +4,19 @@
     "slug": "MyToDo",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/todo-ios-icon.png",
     "scheme": "MyToDo",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/images/todo-ios-icon.png",
       "bundleIdentifier": "com.MyToDo.app"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/todo-android-icon.png",
+        "backgroundImage": "./assets/images/todo-android-icon.png",
+        "monochromeImage": "./assets/images/todo-android-icon.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.MyToDo.app"
@@ -32,7 +32,7 @@
         {
           "backgroundColor": "#208AEF",
           "android": {
-            "image": "./assets/images/splash-icon.png",
+            "image": "./assets/images/todo-ios-icon.png",
             "imageWidth": 76
           }
         }
@@ -42,6 +42,19 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "48ab2a74-fba4-4136-982e-8ee8eb626c24"
+      }
+    },
+    "owner": "moreno.dev",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/48ab2a74-fba4-4136-982e-8ee8eb626c24"
     }
   }
 }

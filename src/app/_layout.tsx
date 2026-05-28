@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { supabase } from "../../utils/supabase";
+import * as Updates from "expo-updates";
+import { Alert } from "react-native";
+
+const isDevelopment = __DEV__;
 
 export default function RootLayout() {
   const [session, setSession] = useState<any>(null);
@@ -40,6 +44,40 @@ export default function RootLayout() {
       router.replace("/");
     }
   }, [session, loading, segments]);
+
+  useEffect(() => {
+    if (isDevelopment) return;
+
+    async function checkUpdates() {
+      try {
+        const update = await Updates.checkForUpdateAsync();
+
+        if (update.isAvailable) {
+          Alert.alert(
+            "Nueva Versión Disponible",
+            "Hay una actualización disponible para la aplicación. ¿Deseas actualizar ahora?",
+            [
+              {
+                text: "Cancelar",
+                style: "cancel"
+              },
+              {
+                text: "Actualizar",
+                onPress: async () => {
+                  await Updates.fetchUpdateAsync();
+                  await Updates.reloadAsync();
+                }
+              }
+            ]
+          );
+        }
+      } catch (e) {
+        console.error("Error checking for updates:", e);
+      }
+    }
+
+    checkUpdates();
+  }, []);
 
   if (loading) {
     return (
