@@ -53,10 +53,7 @@ export default function Home() {
       const data = await getProjects();
       setProjects(data || []);
     } catch (error: any) {
-      Alert.alert(
-        "Error",
-        "No se pudieron cargar los proyectos: " + error.message
-      );
+      console.log("Error in fetching projects: ", error)
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -64,21 +61,22 @@ export default function Home() {
   };
 
   useEffect(() => {
-    fetchProjects();
-  }, []);
-
-  useEffect(() => {
-    const loadUser = async () => {
+    const init = async () => {
       try {
         const currentUser = await getCurrentUser();
         if (currentUser) {
           setUser(currentUser);
+          await fetchProjects();
+        } else {
+          setIsLoading(false);
         }
       } catch (err: any) {
         console.log(err);
+        setIsLoading(false);
       }
     };
-    loadUser();
+    
+    init();
   }, []);
 
   const onRefresh = () => {
@@ -251,61 +249,72 @@ export default function Home() {
         ) : (
           <View style={styles.projectsList}>
             <Text style={styles.sectionHeader}>Tus Proyectos</Text>
-            <View style={styles.projectsGrid}>
-            {projects.map((project, index) => {
-              const themes = [
-                { bg: '#EEF2FF', icon: '🚀', tint: '#4F46E5', text: '#312E81' },
-                { bg: '#FDF2F8', icon: '✨', tint: '#DB2777', text: '#831843' },
-                { bg: '#F0FDF4', icon: '🎨', tint: '#16A34A', text: '#14532D' },
-                { bg: '#FFFBEB', icon: '🔥', tint: '#D97706', text: '#78350F' },
-                { bg: '#FAF5FF', icon: '💡', tint: '#9333EA', text: '#581C87' },
-              ];
-              const theme = themes[index % themes.length];
-              
-              const tasks = project.tasks || [];
-              const totalTasks = tasks.length;
-              const completedTasks = tasks.filter(t => t.status === 'completada').length;
-              const progress = totalTasks > 0 ? (completedTasks / totalTasks) : 0;
-              const progressPercent = Math.round(progress * 100);
-              
-              const isCompleted = totalTasks > 0 && totalTasks === completedTasks;
-              const cardBg = isCompleted ? theme.bg : "#FFFFFF";
+            <View style={styles.projectsListContainer}>
+              {projects.map((project, index) => {
+                const themes = [
+                  { bg: '#EEF2FF', icon: '🚀', tint: '#4F46E5', text: '#312E81' },
+                  { bg: '#FDF2F8', icon: '✨', tint: '#DB2777', text: '#831843' },
+                  { bg: '#F0FDF4', icon: '🎨', tint: '#16A34A', text: '#14532D' },
+                  { bg: '#FFFBEB', icon: '🔥', tint: '#D97706', text: '#78350F' },
+                  { bg: '#FAF5FF', icon: '💡', tint: '#9333EA', text: '#581C87' },
+                ];
+                const theme = themes[index % themes.length];
 
-              return (
-                <TouchableOpacity
-                  key={project.id}
-                  style={styles.squareCardWrapper}
-                  activeOpacity={0.75}
-                  onPress={() => handleProjectPress(project)}
-                >
-                  <View style={[styles.squareCard, { backgroundColor: cardBg }]}>
-                    <View style={styles.squareCardHeader}>
-                        <View style={[styles.squareIconContainer, { backgroundColor: isCompleted ? "#FFFFFF" : theme.bg }]}>
-                          <Text style={styles.squareIconEmoji}>{theme.icon}</Text>
-                        </View>
-                        {totalTasks > 0 && (
-                            <Text style={[styles.progressText, { color: theme.tint }]}>
-                                {progressPercent}%
+                const tasks = project.tasks || [];
+                const totalTasks = tasks.length;
+                const completedTasks = tasks.filter(t => t.status === 'completada').length;
+                const progress = totalTasks > 0 ? (completedTasks / totalTasks) : 0;
+                const progressPercent = Math.round(progress * 100);
+
+                const isCompleted = totalTasks > 0 && totalTasks === completedTasks;
+                const cardBg = isCompleted ? theme.bg : "#FFFFFF";
+
+                return (
+                  <TouchableOpacity
+                    key={project.id}
+                    style={styles.projectCardWrapper}
+                    activeOpacity={0.8}
+                    onPress={() => handleProjectPress(project)}
+                  >
+                    <View style={[styles.projectCard, { backgroundColor: cardBg }]}>
+                      <View style={styles.projectCardHeader}>
+                        <View style={styles.projectCardHeaderLeft}>
+                          <View style={[styles.projectIconContainer, { backgroundColor: isCompleted ? "#FFFFFF" : theme.bg }]}>
+                            <Text style={styles.projectIconEmoji}>{theme.icon}</Text>
+                          </View>
+                          <View style={styles.projectCardTitleContainer}>
+                            <Text numberOfLines={1} style={styles.projectTitle}>
+                              {project.title}
                             </Text>
-                        )}
-                    </View>
-                    
-                    <View style={styles.squareCardBody}>
-                      <Text numberOfLines={2} style={styles.squareTitle}>
-                        {project.title}
-                      </Text>
-                      <Text numberOfLines={1} style={styles.squareDescription}>
-                        {project.description || "Sin descripción"}
-                      </Text>
-                    </View>
+                            <Text numberOfLines={2} style={styles.projectDescription}>
+                              {project.description || "Sin descripción"}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.projectCardHeaderRight}>
+                          <Text style={styles.projectChevron}>›</Text>
+                        </View>
+                      </View>
 
-                    <View style={styles.progressBarBackground}>
-                        <View style={[styles.progressBarFill, { width: `${progressPercent}%`, backgroundColor: theme.tint }]} />
+                      <View style={styles.projectCardFooter}>
+                        <View style={styles.projectTasksInfo}>
+                          <Text style={styles.projectTasksText}>
+                            {completedTasks} / {totalTasks} tareas
+                          </Text>
+                        </View>
+                        <View style={styles.projectProgressWrapper}>
+                           <Text style={[styles.projectProgressText, { color: theme.tint }]}>
+                             {progressPercent}%
+                           </Text>
+                           <View style={styles.projectProgressBarBackground}>
+                             <View style={[styles.projectProgressBarFill, { width: `${progressPercent}%`, backgroundColor: theme.tint }]} />
+                           </View>
+                        </View>
+                      </View>
                     </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         )}
@@ -317,7 +326,7 @@ export default function Home() {
         transparent
         animationType="slide"
       >
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           style={styles.modalOverlay}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
@@ -572,73 +581,106 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     letterSpacing: 0.5,
   },
-  projectsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+  projectsListContainer: {
     marginTop: 8,
   },
-  squareCardWrapper: {
-    width: '48%',
+  projectCardWrapper: {
     marginBottom: 16,
-    aspectRatio: 0.85, 
+    width: '100%',
   },
-  squareCard: {
+  projectCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
-    padding: 16,
-    flex: 1,
+    padding: 20,
     shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 4,
     borderWidth: 1,
-    borderColor: "rgba(226, 232, 240, 0.8)",
+    borderColor: "rgba(226, 232, 240, 0.6)",
   },
-  squareCardHeader: {
+  projectCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    alignItems: 'center',
+    marginBottom: 20,
   },
-  squareIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  squareIconEmoji: {
-    fontSize: 22,
-  },
-  progressText: {
-    fontSize: 13,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-  squareCardBody: {
+  projectCardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
   },
-  squareTitle: {
-    fontSize: 16,
+  projectCardHeaderRight: {
+    paddingLeft: 12,
+  },
+  projectIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  projectIconEmoji: {
+    fontSize: 26,
+  },
+  projectCardTitleContainer: {
+    flex: 1,
+  },
+  projectTitle: {
+    fontSize: 18,
     fontWeight: "700",
     color: "#0F172A",
-    marginBottom: 6,
-    letterSpacing: -0.2,
+    marginBottom: 4,
+    letterSpacing: -0.3,
   },
-  squareDescription: {
-    fontSize: 12,
+  projectDescription: {
+    fontSize: 13,
+    color: "#64748B",
+    lineHeight: 18,
+  },
+  projectChevron: {
+    fontSize: 28,
+    color: "#CBD5E1",
+    fontWeight: "300",
+    marginTop: -4,
+  },
+  projectCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: "rgba(226, 232, 240, 0.6)",
+    paddingTop: 16,
+  },
+  projectTasksInfo: {
+    flex: 1,
+  },
+  projectTasksText: {
+    fontSize: 13,
+    fontWeight: "600",
     color: "#64748B",
   },
-  progressBarBackground: {
+  projectProgressWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1.5,
+    justifyContent: 'flex-end',
+  },
+  projectProgressText: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginRight: 8,
+  },
+  projectProgressBarBackground: {
+    width: 80,
     height: 6,
     backgroundColor: '#E2E8F0',
     borderRadius: 3,
-    marginTop: 12,
     overflow: 'hidden',
   },
-  progressBarFill: {
+  projectProgressBarFill: {
     height: '100%',
     borderRadius: 3,
   },

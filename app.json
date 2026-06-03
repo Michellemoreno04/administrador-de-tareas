@@ -5,11 +5,14 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/todo-ios-icon.png",
-    "scheme": "MyToDo",
+    "scheme": "mytodo",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/images/todo-ios-icon.png",
-      "bundleIdentifier": "com.MyToDo.app"
+      "bundleIdentifier": "com.morenodev.mytodo",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +22,7 @@
         "monochromeImage": "./assets/images/todo-android-icon.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.MyToDo.app"
+      "package": "com.morenodev.mytodo"
     },
     "web": {
       "output": "static",

@@ -29,7 +29,7 @@ type Task = {
 export default function ProjectTask() {
     const router = useRouter();
     const { projectId, projectName } = useLocalSearchParams();
-    
+
     const [tasks, setTasks] = useState<Task[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -214,7 +214,7 @@ export default function ProjectTask() {
         <SafeAreaView style={styles.safeArea}>
             <StatusBar style="dark" />
 
-            <ScrollView 
+            <ScrollView
                 contentContainerStyle={styles.container}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -223,8 +223,8 @@ export default function ProjectTask() {
                 {/* Header */}
                 <View style={styles.headerRow}>
                     <View style={styles.headerTitleContainer}>
-                        <TouchableOpacity 
-                            onPress={() => router.back()} 
+                        <TouchableOpacity
+                            onPress={() => router.back()}
                             style={styles.backButton}
                         >
                             <Text style={styles.backButtonText}>←</Text>
