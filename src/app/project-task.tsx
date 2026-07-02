@@ -1,20 +1,21 @@
-import { useState, useEffect } from "react";
+import * as Haptic from 'expo-haptics';
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useState } from "react";
 import {
-    Text,
-    View,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
-    TextInput,
-    Modal,
     ActivityIndicator,
     Alert,
+    Modal,
     RefreshControl,
-} from "react-native";
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
 
-import { StatusBar } from "expo-status-bar";
+    View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../../utils/supabase";
 
 type TaskStatus = "por-hacer" | "pendiente" | "completada";
@@ -37,6 +38,13 @@ export default function ProjectTask() {
 
     const [newTaskTitle, setNewTaskTitle] = useState("");
     const [newTaskDescription, setNewTaskDescription] = useState("");
+
+    const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+    const [isMenuVisible, setIsMenuVisible] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [isViewing, setIsViewing] = useState(false);
+    const [editTaskTitle, setEditTaskTitle] = useState("");
+    const [editTaskDescription, setEditTaskDescription] = useState("");
 
     const fetchTasks = async (showLoadingIndicator = true) => {
         if (!projectId) return;
@@ -118,6 +126,39 @@ export default function ProjectTask() {
         }
     };
 
+    const handleLongPress = async (task: Task) => {
+
+        await Haptic.impactAsync(Haptic.ImpactFeedbackStyle.Heavy);
+        setSelectedTask(task);
+        setIsMenuVisible(true);
+    };
+
+    const handleUpdateTask = async () => {
+        if (!selectedTask || !editTaskTitle.trim()) return;
+
+        try {
+            const { error } = await supabase
+                .from("tasks")
+                .update({
+                    title: editTaskTitle.trim(),
+                    description: editTaskDescription.trim()
+                })
+                .eq("id", selectedTask.id);
+
+            if (error) throw error;
+
+            setTasks(
+                tasks.map((task) =>
+                    task.id === selectedTask.id ? { ...task, title: editTaskTitle.trim(), description: editTaskDescription.trim() } : task
+                )
+            );
+            setIsEditing(false);
+            setSelectedTask(null);
+        } catch (error: any) {
+            Alert.alert("Error", "No se pudo actualizar la tarea: " + error.message);
+        }
+    };
+
     const handleDeleteTask = async (taskId: string) => {
         Alert.alert(
             "Eliminar tarea",
@@ -172,7 +213,13 @@ export default function ProjectTask() {
         }
 
         return filteredTasks.map((task) => (
-            <View key={task.id} style={styles.taskItem}>
+            <TouchableOpacity
+                key={task.id}
+                style={styles.taskItem}
+                onLongPress={() => handleLongPress(task)}
+                delayLongPress={300}
+                activeOpacity={0.8}
+            >
                 <View style={styles.taskContentContainer}>
                     <Text style={styles.taskTitle}>
                         {task.title}
@@ -206,7 +253,7 @@ export default function ProjectTask() {
                         <Text style={styles.deleteButtonText}>🗑️</Text>
                     </TouchableOpacity>
                 </View>
-            </View>
+            </TouchableOpacity>
         ));
     };
 
@@ -309,6 +356,149 @@ export default function ProjectTask() {
                                 >
                                     <Text style={styles.createButtonText}>
                                         Crear
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
+
+                {/* Menu Modal */}
+                <Modal
+                    visible={isMenuVisible}
+                    transparent
+                    animationType="fade"
+                    onRequestClose={() => setIsMenuVisible(false)}
+                >
+                    <TouchableOpacity
+                        style={styles.modalOverlay}
+                        activeOpacity={1}
+                        onPress={() => setIsMenuVisible(false)}
+                    >
+                        <View style={styles.menuContent}>
+                            <Text style={styles.menuTitle} numberOfLines={1}>
+                                {selectedTask?.title}
+                            </Text>
+
+                            <TouchableOpacity
+                                style={styles.menuOption}
+                                onPress={() => {
+                                    setIsMenuVisible(false);
+                                    setIsViewing(true);
+                                }}
+                            >
+                                <Text style={styles.menuOptionText}>Ver detalles</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.menuOption}
+                                onPress={() => {
+                                    setIsMenuVisible(false);
+                                    setEditTaskTitle(selectedTask?.title || "");
+                                    setEditTaskDescription(selectedTask?.description || "");
+                                    setIsEditing(true);
+                                }}
+                            >
+                                <Text style={styles.menuOptionText}>Editar tarea</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.menuOption, styles.menuOptionDestructive]}
+                                onPress={() => {
+                                    setIsMenuVisible(false);
+                                    if (selectedTask) handleDeleteTask(selectedTask.id);
+                                }}
+                            >
+                                <Text style={styles.menuOptionTextDestructive}>Eliminar tarea</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </TouchableOpacity>
+                </Modal>
+
+                {/* View Details Modal */}
+                <Modal
+                    visible={isViewing}
+                    transparent
+                    animationType="slide"
+                    onRequestClose={() => setIsViewing(false)}
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalContent}>
+                            <View style={styles.viewHeader}>
+                                <Text style={styles.modalTitle}>Detalles de la tarea</Text>
+                                <TouchableOpacity onPress={() => setIsViewing(false)}>
+                                    <Text style={styles.closeButtonText}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <ScrollView style={styles.viewScroll}>
+                                <Text style={styles.viewLabel}>Título</Text>
+                                <Text style={styles.viewValue}>{selectedTask?.title}</Text>
+
+                                <Text style={styles.viewLabel}>Descripción</Text>
+                                <Text style={styles.viewValue}>{selectedTask?.description || "Sin descripción"}</Text>
+
+                                <Text style={styles.viewLabel}>Estado</Text>
+                                <Text style={styles.viewValue}>{selectedTask?.status}</Text>
+                            </ScrollView>
+                            <View style={styles.modalButtons}>
+                                <TouchableOpacity
+                                    style={styles.createButton}
+                                    onPress={() => setIsViewing(false)}
+                                >
+                                    <Text style={styles.createButtonText}>Cerrar</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
+
+                {/* Edit Task Modal */}
+                <Modal
+                    visible={isEditing}
+                    transparent
+                    animationType="slide"
+                    onRequestClose={() => setIsEditing(false)}
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalContent}>
+                            <Text style={styles.modalTitle}>
+                                Editar tarea
+                            </Text>
+
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="Título"
+                                value={editTaskTitle}
+                                onChangeText={setEditTaskTitle}
+                            />
+
+                            <TextInput
+                                style={[
+                                    styles.modalInput,
+                                    styles.descriptionInput,
+                                ]}
+                                placeholder="Descripción"
+                                value={editTaskDescription}
+                                onChangeText={setEditTaskDescription}
+                                multiline
+                            />
+
+                            <View style={styles.modalButtons}>
+                                <TouchableOpacity
+                                    style={styles.cancelButton}
+                                    onPress={() => setIsEditing(false)}
+                                >
+                                    <Text style={styles.cancelButtonText}>
+                                        Cancelar
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.createButton}
+                                    onPress={handleUpdateTask}
+                                >
+                                    <Text style={styles.createButtonText}>
+                                        Guardar
                                     </Text>
                                 </TouchableOpacity>
                             </View>
@@ -520,7 +710,7 @@ const styles = StyleSheet.create({
     },
 
     tableContent: {
-        padding: 6,
+
         flex: 1,
         minHeight: 300,
     },
@@ -533,10 +723,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: "#E5E7EB",
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
+
     },
 
     taskContentContainer: {
@@ -601,6 +788,86 @@ const styles = StyleSheet.create({
         fontStyle: "italic",
         textAlign: "center",
         marginTop: 20,
+    },
+
+    /* MENU & VIEW STYLES */
+    menuContent: {
+        width: "80%",
+        backgroundColor: "#FFFFFF",
+        borderRadius: 16,
+        padding: 16,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 5,
+    },
+
+    menuTitle: {
+        fontSize: 18,
+        fontWeight: "bold",
+        color: "#111827",
+        marginBottom: 16,
+        textAlign: "center",
+        borderBottomWidth: 1,
+        borderBottomColor: "#F3F4F6",
+        paddingBottom: 12,
+    },
+
+    menuOption: {
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: "#F3F4F6",
+    },
+
+    menuOptionDestructive: {
+        borderBottomWidth: 0,
+    },
+
+    menuOptionText: {
+        fontSize: 16,
+        color: "#374151",
+        textAlign: "center",
+        fontWeight: "500",
+    },
+
+    menuOptionTextDestructive: {
+        fontSize: 16,
+        color: "#EF4444",
+        textAlign: "center",
+        fontWeight: "600",
+    },
+
+    viewHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 16,
+    },
+
+    closeButtonText: {
+        fontSize: 20,
+        color: "#6B7280",
+        fontWeight: "bold",
+    },
+
+    viewScroll: {
+        maxHeight: 400,
+        marginBottom: 16,
+    },
+
+    viewLabel: {
+        fontSize: 13,
+        color: "#6B7280",
+        marginBottom: 4,
+        fontWeight: "600",
+    },
+
+    viewValue: {
+        fontSize: 16,
+        color: "#111827",
+        marginBottom: 16,
+        lineHeight: 24,
     },
 
     /* MODAL */

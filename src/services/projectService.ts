@@ -46,3 +46,14 @@ export const createProject = async (title: string, description: string): Promise
 
   return data && data.length > 0 ? (data[0] as Project) : null;
 };
+
+export const deleteProject = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from("projects")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    throw error;
+  }
+};

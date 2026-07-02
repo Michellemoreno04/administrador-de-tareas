@@ -1,28 +1,29 @@
-import { useState, useEffect } from "react";
-import {
-  Text,
-  View,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  ActivityIndicator,
-  Alert,
-  RefreshControl,
-  Dimensions,
-  Platform,
-  KeyboardAvoidingView,
-} from "react-native";
-import { StatusBar } from "expo-status-bar";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   Project,
-  getProjects,
   createProject,
+  deleteProject,
+  getProjects,
 } from "../services/projectService";
 
 import {
@@ -75,7 +76,7 @@ export default function Home() {
         setIsLoading(false);
       }
     };
-    
+
     init();
   }, []);
 
@@ -138,6 +139,34 @@ export default function Home() {
                 "Error",
                 "No se pudo cerrar sesión: " + error.message
               );
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteProject = (project: Project) => {
+    Alert.alert(
+      "Eliminar Proyecto",
+      `¿Estás seguro de que quieres eliminar "${project.title}"?`,
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setIsLoading(true);
+              await deleteProject(project.id);
+              setProjects(projects.filter(p => p.id !== project.id));
+            } catch (error: any) {
+              Alert.alert("Error", "No se pudo eliminar el proyecto: " + error.message);
+            } finally {
+              setIsLoading(false);
             }
           },
         },
@@ -252,11 +281,11 @@ export default function Home() {
             <View style={styles.projectsListContainer}>
               {projects.map((project, index) => {
                 const themes = [
-                  { bg: '#EEF2FF', icon: '🚀', tint: '#4F46E5', text: '#312E81' },
-                  { bg: '#FDF2F8', icon: '✨', tint: '#DB2777', text: '#831843' },
-                  { bg: '#F0FDF4', icon: '🎨', tint: '#16A34A', text: '#14532D' },
+                  { bg: '#315ce9ff', icon: '🚀', tint: '#1e14e1ff', text: '#312E81' },
+                  { bg: '#d9298aff', icon: '✨', tint: '#DB2777', text: '#831843' },
+                  { bg: '#1fc04fff', icon: '🎨', tint: '#16A34A', text: '#14532D' },
                   { bg: '#FFFBEB', icon: '🔥', tint: '#D97706', text: '#78350F' },
-                  { bg: '#FAF5FF', icon: '💡', tint: '#9333EA', text: '#581C87' },
+                  { bg: '#712bb8ff', icon: '💡', tint: '#9333EA', text: '#581C87' },
                 ];
                 const theme = themes[index % themes.length];
 
@@ -270,49 +299,41 @@ export default function Home() {
                 const cardBg = isCompleted ? theme.bg : "#FFFFFF";
 
                 return (
-                  <TouchableOpacity
-                    key={project.id}
-                    style={styles.projectCardWrapper}
-                    activeOpacity={0.8}
-                    onPress={() => handleProjectPress(project)}
-                  >
-                    <View style={[styles.projectCard, { backgroundColor: cardBg }]}>
-                      <View style={styles.projectCardHeader}>
-                        <View style={styles.projectCardHeaderLeft}>
-                          <View style={[styles.projectIconContainer, { backgroundColor: isCompleted ? "#FFFFFF" : theme.bg }]}>
-                            <Text style={styles.projectIconEmoji}>{theme.icon}</Text>
-                          </View>
-                          <View style={styles.projectCardTitleContainer}>
-                            <Text numberOfLines={1} style={styles.projectTitle}>
-                              {project.title}
-                            </Text>
-                            <Text numberOfLines={2} style={styles.projectDescription}>
-                              {project.description || "Sin descripción"}
-                            </Text>
-                          </View>
-                        </View>
-                        <View style={styles.projectCardHeaderRight}>
-                          <Text style={styles.projectChevron}>›</Text>
-                        </View>
-                      </View>
+                  <View key={project.id} style={styles.projectSphereWrapper}>
+                    <TouchableOpacity
+                      style={styles.projectSphereContainer}
+                      activeOpacity={0.8}
+                      onPress={() => handleProjectPress(project)}
+                      onLongPress={() => handleDeleteProject(project)}
+                    >
+                      <View style={[styles.projectSphere, { borderColor: theme.bg }]}>
+                        {/* Background fill based on progress */}
+                        <View
+                          style={[
+                            styles.projectSphereFill,
+                            {
+                              height: `${progressPercent}%`,
+                              backgroundColor: theme.tint,
+                              opacity: 0.2
+                            }
+                          ]}
+                        />
 
-                      <View style={styles.projectCardFooter}>
-                        <View style={styles.projectTasksInfo}>
-                          <Text style={styles.projectTasksText}>
-                            {completedTasks} / {totalTasks} tareas
+                        {/* Icon and content centered */}
+                        <View style={styles.projectSphereContent}>
+                          <Text style={[styles.projectInitialText, { color: theme.tint }]}>
+                            {project.title ? project.title.charAt(0).toUpperCase() : "?"}
                           </Text>
                         </View>
-                        <View style={styles.projectProgressWrapper}>
-                           <Text style={[styles.projectProgressText, { color: theme.tint }]}>
-                             {progressPercent}%
-                           </Text>
-                           <View style={styles.projectProgressBarBackground}>
-                             <View style={[styles.projectProgressBarFill, { width: `${progressPercent}%`, backgroundColor: theme.tint }]} />
-                           </View>
-                        </View>
                       </View>
-                    </View>
-                  </TouchableOpacity>
+                    </TouchableOpacity>
+                    <Text numberOfLines={1} style={styles.projectSphereTitle}>
+                      {project.title}
+                    </Text>
+                    <Text style={[styles.projectSphereProgress, { color: theme.tint }]}>
+                      {progressPercent}%
+                    </Text>
+                  </View>
                 );
               })}
             </View>
@@ -583,106 +604,63 @@ const styles = StyleSheet.create({
   },
   projectsListContainer: {
     marginTop: 8,
-  },
-  projectCardWrapper: {
-    marginBottom: 16,
-    width: '100%',
-  },
-  projectCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 20,
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: "rgba(226, 232, 240, 0.6)",
-  },
-  projectCardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    gap: 16,
+    paddingHorizontal: 8,
+  },
+  projectSphereWrapper: {
+    width: '28%',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 28,
   },
-  projectCardHeaderLeft: {
-    flexDirection: 'row',
+  projectSphereContainer: {
     alignItems: 'center',
-    flex: 1,
+    justifyContent: 'center',
+    marginBottom: 10,
   },
-  projectCardHeaderRight: {
-    paddingLeft: 12,
-  },
-  projectIconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
-  },
-  projectIconEmoji: {
-    fontSize: 26,
-  },
-  projectCardTitleContainer: {
-    flex: 1,
-  },
-  projectTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 4,
-    letterSpacing: -0.3,
-  },
-  projectDescription: {
-    fontSize: 13,
-    color: "#64748B",
-    lineHeight: 18,
-  },
-  projectChevron: {
-    fontSize: 28,
-    color: "#CBD5E1",
-    fontWeight: "300",
-    marginTop: -4,
-  },
-  projectCardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: "rgba(226, 232, 240, 0.6)",
-    paddingTop: 16,
-  },
-  projectTasksInfo: {
-    flex: 1,
-  },
-  projectTasksText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#64748B",
-  },
-  projectProgressWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1.5,
-    justifyContent: 'flex-end',
-  },
-  projectProgressText: {
-    fontSize: 13,
-    fontWeight: '700',
-    marginRight: 8,
-  },
-  projectProgressBarBackground: {
-    width: 80,
-    height: 6,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 3,
+  projectSphere: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 5,
     overflow: 'hidden',
+    position: 'relative',
+
   },
-  projectProgressBarFill: {
-    height: '100%',
-    borderRadius: 3,
+  projectSphereFill: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  projectSphereContent: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  projectInitialText: {
+    fontSize: 36,
+    fontWeight: '800',
+  },
+  projectSphereTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  projectSphereProgress: {
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,
